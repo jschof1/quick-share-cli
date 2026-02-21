@@ -1,0 +1,14 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="100" cy="100" r="90" fill="#F59E0B"/>
+  
+  <!-- Lightning Bolt -->
+  <path d="M105 35L75 95H95L85 155L125 85H100L115 35H105Z" fill="white" stroke="white" stroke-width="4" stroke-linejoin="round"/>
+  
+  <!-- Cloud -->
+  <path d="M140 125C152.5 125 162.5 115 162.5 102.5C162.5 91.5 154.5 82.5 144 80.5C143 65.5 130.5 54 115 54C101.5 54 90 63 86.5 75.5C85.5 75.5 84.5 75.5 83.5 75.5C68.5 75.5 56.5 87.5 56.5 102.5C56.5 115.5 66.5 126 79 126.5" 
+        stroke="white" stroke-width="8" stroke-linecap="round" fill="none"/>
+  
+  <!-- Upload Arrow -->
+  <path d="M100 145V105M100 105L85 120M100 105L115 120" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

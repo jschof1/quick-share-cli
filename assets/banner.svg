@@ -1,0 +1,31 @@
+<svg width="1200" height="400" viewBox="0 0 1200 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="400" fill="#1F2937"/>
+  
+  <!-- Gradient Accent -->
+  <rect width="1200" height="8" fill="url(#gradient)"/>
+  
+  <!-- Logo Icon -->
+  <g transform="translate(100, 100)">
+    <circle cx="100" cy="100" r="90" fill="#F59E0B"/>
+    <path d="M105 35L75 95H95L85 155L125 85H100L115 35H105Z" fill="white" stroke="white" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M140 125C152.5 125 162.5 115 162.5 102.5C162.5 91.5 154.5 82.5 144 80.5C143 65.5 130.5 54 115 54C101.5 54 90 63 86.5 75.5C85.5 75.5 84.5 75.5 83.5 75.5C68.5 75.5 56.5 87.5 56.5 102.5C56.5 115.5 66.5 126 79 126.5" 
+          stroke="white" stroke-width="8" stroke-linecap="round" fill="none"/>
+    <path d="M100 145V105M100 105L85 120M100 105L115 120" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Title -->
+  <text x="350" y="180" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="bold">Quick Share</text>
+  <text x="350" y="250" fill="#F59E0B" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="600">CLI</text>
+  
+  <!-- Tagline -->
+  <text x="350" y="300" fill="#9CA3AF" font-family="system-ui, -apple-system, sans-serif" font-size="24">⚡ Lightning-fast file sharing via Cloudflare R2</text>
+  
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="1200" y2="0">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#FBBF24"/>
+    </linearGradient>
+  </defs>
+</svg>

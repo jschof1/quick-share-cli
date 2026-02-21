@@ -1,0 +1,8 @@
+{
+  "accountId": "your-account-id",
+  "accessKeyId": "your-access-key-id",
+  "secretAccessKey": "your-secret-access-key",
+  "bucketName": "your-bucket-name",
+  "publicUrl": "https://pub-xxxxx.r2.dev",
+  "endpoint": "https://your-account-id.r2.cloudflarestorage.com"
+}

@@ -1,0 +1,63 @@
+{
+  "name": "quick-share-cli",
+  "version": "1.0.0",
+  "description": "⚡ Lightning-fast file sharing via Cloudflare R2 - Upload any file and get instant shareable links",
+  "main": "bin/quick-share.js",
+  "bin": {
+    "quick-share": "bin/quick-share.js",
+    "qshare": "bin/quick-share.js",
+    "share": "bin/quick-share.js"
+  },
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint .",
+    "postinstall": "node scripts/postinstall.js",
+    "preuninstall": "node scripts/preuninstall.js"
+  },
+  "keywords": [
+    "cli",
+    "cloudflare",
+    "r2",
+    "file-sharing",
+    "upload",
+    "cdn",
+    "s3",
+    "image-hosting",
+    "file-hosting",
+    "productivity"
+  ],
+  "author": "Jack <jack@aspectstudio.net>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jack/quick-share-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jack/quick-share-cli/issues"
+  },
+  "homepage": "https://github.com/jack/quick-share-cli#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^9.4.1",
+    "ora": "^5.4.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.28.0",
+    "jest": "^29.3.1"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ]
+}
