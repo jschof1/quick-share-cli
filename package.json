@@ -57,6 +57,7 @@
     "bin/",
     "scripts/",
     "lib/",
+    "assets/",
     "README.md",
     "LICENSE"
   ]
