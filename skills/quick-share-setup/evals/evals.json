@@ -1,0 +1,29 @@
+{
+  "skill_name": "quick-share-setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Can you wire Quick Share into /Users/jack/Documents/GitHub/hermes so agents can find shared Hermes images without remembering URLs? The Worker is https://quick-share-api.example.workers.dev",
+      "expected_output": "Uses quick-share init with the Hermes project path and hermes/ prefix, then verifies with quick-share where and health from the target project.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "OpenClaw needs access to the common shared asset shelf. I don't know the exact Cloudflare worker URL yet. Can you set it up?",
+      "expected_output": "Does not invent a Worker URL. Explains that the hosted Quick Share Worker URL is required before project setup can be completed, and optionally points to the service setup boundary.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I’m in a project that already has .quick-share.json. Show me the image URLs I can paste into a handover doc.",
+      "expected_output": "Runs or recommends quick-share where and quick-share images, using the existing project config rather than asking for setup details.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "I haven't set up the Quick Share Cloudflare worker yet but I do have Wrangler connected. Can you make the CLI set up the R2 bucket and worker for me?",
+      "expected_output": "Uses or recommends quick-share setup-service, checks Wrangler/auth, creates the bucket, writes wrangler.toml, deploys the Worker, and clearly notes that a public R2 URL is still needed for public file URLs.",
+      "files": []
+    }
+  ]
+}

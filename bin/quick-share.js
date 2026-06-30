@@ -1,310 +1,578 @@
 #!/usr/bin/env node
 
-const { program } = require("commander");
-const chalk = require("chalk");
-const ora = require("ora");
-const { execSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 
-const packageJson = require("../package.json");
-const { uploadFile, setupConfig, validateConfig } = require("../lib/upload");
+const VERSION = "1.0.0";
+const CONFIG_NAME = ".quick-share.json";
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const command = process.argv[2] || "help";
+const args = process.argv.slice(3);
 
-program
-  .name("quick-share")
-  .description("⚡ Lightning-fast file sharing via Cloudflare R2")
-  .version(packageJson.version);
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error(`quick-share: ${error.message}`);
+    process.exit(1);
+  });
 
-program
-  .command("upload <file>")
-  .alias("up")
-  .description("Upload a file to Cloudflare R2")
-  .option("-c, --config <path>", "Path to custom config file")
-  .action(async (file, options) => {
-    try {
-      const spinner = ora("Uploading file...").start();
-      const result = await uploadFile(file, options);
-      spinner.succeed("Upload complete!");
+async function main() {
+  if (command === "help" || command === "-h" || command === "--help") {
+    printHelp();
+    return;
+  }
 
-      console.log(chalk.green("\n✓ File uploaded successfully!\n"));
-      console.log(chalk.blue("URL:      ") + chalk.white(result.url));
-      console.log(chalk.blue("Size:     ") + chalk.white(result.size));
-      console.log(chalk.blue("Type:     ") + chalk.white(result.mimeType));
+  if (command === "version" || command === "--version") {
+    console.log(VERSION);
+    return;
+  }
 
-      if (result.isImage) {
-        console.log(chalk.yellow("\nMarkdown: ") + `![file](${result.url})`);
-        console.log(
-          chalk.yellow("HTML:     ") + `<img src="${result.url}" alt="file">`,
-        );
-      } else if (result.isVideo) {
-        console.log(
-          chalk.yellow("\nVideo:    ") +
-            `<video controls><source src="${result.url}" type="${result.mimeType}"></video>`,
-        );
-      } else if (result.isAudio) {
-        console.log(
-          chalk.yellow("\nAudio:    ") +
-            `<audio controls><source src="${result.url}" type="${result.mimeType}"></audio>`,
-        );
+  if (command === "init") {
+    initProject(args);
+    return;
+  }
+
+  if (command === "setup-service") {
+    setupService(args);
+    return;
+  }
+
+  if (command === "where") {
+    const config = loadConfig();
+    printJson({
+      configPath: config.configPath,
+      apiUrl: config.apiUrl,
+      defaultPrefix: config.defaultPrefix || "",
+    });
+    return;
+  }
+
+  if (command === "health") {
+    const config = loadConfig();
+    printJson(await fetchJson(config, "/health"));
+    return;
+  }
+
+  if (command === "manifest") {
+    const config = loadConfig();
+    printJson(await fetchJson(config, "/.well-known/quick-share.json"));
+    return;
+  }
+
+  if (command === "files") {
+    const config = loadConfig();
+    const options = parseListOptions(args, config);
+    const data = await listFiles(config, options);
+    if (options.json) {
+      printJson(data);
+    } else {
+      printFileTable(data.files);
+      if (data.next) {
+        console.error(`More files available: ${data.next}`);
       }
-
-      // Copy to clipboard
-      try {
-        if (process.platform === "darwin") {
-          execSync(`echo "${result.url}" | pbcopy`);
-          console.log(chalk.green("\n✓ URL copied to clipboard"));
-        } else if (process.platform === "linux") {
-          execSync(`echo "${result.url}" | xclip -selection clipboard`);
-          console.log(chalk.green("\n✓ URL copied to clipboard"));
-        }
-      } catch (e) {
-        // Clipboard not available, skip
-      }
-    } catch (error) {
-      console.error(chalk.red("\n✗ Upload failed:"), error.message);
-      process.exit(1);
     }
+    return;
+  }
+
+  if (command === "urls" || command === "images") {
+    const config = loadConfig();
+    const options = parseListOptions(args, config);
+    const data = await listFiles(config, options);
+    const urls = data.files
+      .filter((file) => file.url)
+      .filter((file) =>
+        command === "images" ? file.mimeType?.startsWith("image/") : true,
+      )
+      .map((file) => file.url);
+    console.log(urls.join("\n"));
+    return;
+  }
+
+  if (command === "open" || command === "copy") {
+    const config = loadConfig();
+    const selector = args[0];
+    if (!selector) throw new Error(`Usage: quick-share ${command} <filename-or-index>`);
+    const data = await listFiles(config, parseListOptions(args.slice(1), config));
+    const file = selectFile(data.files, selector);
+    if (!file?.url) throw new Error(`No public URL found for ${selector}`);
+    if (command === "open") openUrl(file.url);
+    if (command === "copy") copyText(file.url);
+    console.log(file.url);
+    return;
+  }
+
+  throw new Error(`Unknown command: ${command}. Run quick-share help.`);
+}
+
+function printHelp() {
+  console.log(`quick-share ${VERSION}
+
+Usage:
+  quick-share init <api-url> [prefix] [--project <dir>]
+  quick-share setup-service [--name quick-share-api] [--bucket quick-share-assets] [--public-url <url>] [--cors-origin <url>] [--no-deploy]
+  quick-share health
+  quick-share manifest
+  quick-share files [prefix] [--limit 100] [--json]
+  quick-share urls [prefix]
+  quick-share images [prefix]
+  quick-share open <filename-or-index> [prefix]
+  quick-share copy <filename-or-index> [prefix]
+  quick-share where
+
+Setup:
+  quick-share setup-service --bucket quick-share-assets --public-url https://pub-example.r2.dev
+  quick-share init https://quick-share-api.example.workers.dev hermes/
+
+How it works:
+  The CLI looks for ${CONFIG_NAME} in the current directory or a parent.
+  QUICK_SHARE_API_URL can be used instead when no config file exists.
+`);
+}
+
+function setupService(argv) {
+  const options = parseSetupServiceOptions(argv);
+  const wrangler = ensureWrangler(options);
+
+  writeWranglerToml(options);
+  console.log(`Wrote ${path.join(REPO_ROOT, "wrangler.toml")}`);
+
+  const whoami = runCommand(wrangler.command, [...wrangler.args, "whoami"], {
+    allowFailure: true,
+    cwd: REPO_ROOT,
   });
+  if (whoami.status !== 0) {
+    console.log("");
+    console.log("Cloudflare authentication is not ready.");
+    console.log("Use one of these, then rerun quick-share setup-service:");
+    console.log("  wrangler login");
+    console.log("  export CLOUDFLARE_API_TOKEN=your_token_here");
+    console.log("");
+    console.log("The token needs permission to deploy Workers and manage the R2 bucket.");
+    return;
+  }
 
-program
-  .command("setup")
-  .description("Configure Cloudflare R2 credentials")
-  .action(async () => {
-    console.log(chalk.blue("⚡ Quick Share CLI Setup\n"));
-    await setupConfig();
-    console.log(chalk.green("\n✓ Setup complete! You can now upload files."));
+  console.log("Cloudflare authentication OK.");
+
+  if (!options.skipBucketCreate) {
+    const bucketCreate = runCommand(
+      wrangler.command,
+      [...wrangler.args, "r2", "bucket", "create", options.bucket],
+      {
+        allowFailure: true,
+        cwd: REPO_ROOT,
+      },
+    );
+    if (bucketCreate.status === 0) {
+      console.log(`R2 bucket ready: ${options.bucket}`);
+    } else if (bucketCreate.output.toLowerCase().includes("already")) {
+      console.log(`R2 bucket already exists: ${options.bucket}`);
+    } else {
+      throw new Error(`Unable to create R2 bucket: ${bucketCreate.output.trim()}`);
+    }
+  }
+
+  if (!options.publicUrl) {
+    console.log("");
+    console.log("No --public-url was provided.");
+    console.log("The Worker can list files, but returned file objects will not include public URLs.");
+    console.log("Cloudflare documents the R2 public development URL as a dashboard setting:");
+    console.log("  R2 bucket > Settings > Public Development URL > Enable");
+    console.log("Then rerun with:");
+    console.log(`  quick-share setup-service --bucket ${options.bucket} --public-url https://YOUR-PUBLIC-BUCKET.r2.dev`);
+  }
+
+  if (options.noDeploy) {
+    console.log("Skipped deploy because --no-deploy was provided.");
+    return;
+  }
+
+  const deploy = runCommand(wrangler.command, [...wrangler.args, "deploy"], {
+    allowFailure: false,
+    cwd: REPO_ROOT,
   });
+  const workerUrl = findWorkerUrl(deploy.output, options.name);
 
-program
-  .command("config")
-  .description("Show current configuration")
-  .action(() => {
-    const configPath = path.join(os.homedir(), ".quick-share", "config.json");
+  console.log("");
+  console.log("Quick Share service deployed.");
+  if (workerUrl) {
+    console.log(`  Worker: ${workerUrl}`);
+    console.log("");
+    console.log("Configure a project with:");
+    console.log(`  quick-share init ${workerUrl} shared/ --project /path/to/project`);
+  } else {
+    console.log("Wrangler deploy completed, but no Worker URL was detected in output.");
+    console.log(`Use the deployed Worker URL with: quick-share init <worker-url> shared/`);
+  }
+}
 
-    if (!fs.existsSync(configPath)) {
-      console.log(
-        chalk.yellow("No configuration found. Run: quick-share setup"),
-      );
-      return;
-    }
-
-    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    console.log(chalk.blue("Current Configuration:\n"));
-    console.log(
-      chalk.blue("Account ID:    ") +
-        (config.accountId ? "✓ Set" : "✗ Not set"),
-    );
-    console.log(
-      chalk.blue("Bucket:        ") + (config.bucketName || "Not set"),
-    );
-    console.log(
-      chalk.blue("Public URL:    ") + (config.publicUrl || "Not set"),
-    );
-    console.log(
-      chalk.blue("Credentials:   ") +
-        (config.accessKeyId ? "✓ Set" : "✗ Not set"),
-    );
-  });
-
-program
-  .command("library")
-  .alias("lib")
-  .description("Deploy a public file library to Cloudflare Pages")
-  .option(
-    "-n, --name <name>",
-    "Project name for Cloudflare Pages",
-    "quick-share-library",
-  )
-  .option("-d, --domain <domain>", "Custom domain (optional)")
-  .action(async (options) => {
-    console.log(chalk.blue("⚡ Deploying File Library...\n"));
-
-    // Check for wrangler
-    try {
-      execSync("which wrangler", { stdio: "ignore" });
-    } catch (e) {
-      console.log(chalk.yellow("Installing wrangler..."));
-      execSync("npm install -g wrangler", { stdio: "inherit" });
-    }
-
-    // Check if logged in
-    try {
-      execSync("wrangler whoami", { stdio: "ignore" });
-    } catch (e) {
-      console.log(chalk.red("Please run: wrangler login"));
-      process.exit(1);
-    }
-
-    // Create temp directory
-    const tempDir = require("os").tmpdir();
-    const libDir = path.join(__dirname, "..", "assets", "library");
-    const deployDir = path.join(tempDir, "quick-share-lib-deploy");
-
-    // Copy library files
-    execSync(`rm -rf "${deployDir}" && cp -r "${libDir}" "${deployDir}"`);
-
-    // Update config in index.html
-    const config = validateConfig();
-    const indexPath = path.join(deployDir, "index.html");
-    let indexHtml = fs.readFileSync(indexPath, "utf8");
-    indexHtml = indexHtml.replace(
-      /const PUBLIC_URL = '.*';/,
-      `const PUBLIC_URL = '${config.publicUrl}';`,
-    );
-    fs.writeFileSync(indexPath, indexHtml);
-
-    console.log(chalk.blue("Deploying to Cloudflare Pages..."));
-
-    try {
-      execSync(
-        `cd "${deployDir}" && wrangler pages project list 2>/dev/null | grep -q "${options.name}" || wrangler pages project create "${options.name}"`,
-        { stdio: "pipe" },
-      );
-    } catch (e) {
-      // Project might already exist
-    }
-
-    execSync(
-      `cd "${deployDir}" && wrangler pages deploy . --project-name="${options.name}"`,
-      { stdio: "inherit" },
-    );
-
-    console.log(chalk.green("\n✓ Library deployed!"));
-    console.log(chalk.blue("\nYour library is live at:"));
-    console.log(chalk.white(`  https://${options.name}.pages.dev`));
-
-    if (options.domain) {
-      console.log(chalk.blue("\nAdding custom domain..."));
-      execSync(
-        `wrangler pages domain add "${options.name}" "${options.domain}"`,
-        { stdio: "inherit" },
-      );
-      console.log(chalk.green(`✓ Domain ${options.domain} connected!`));
-    }
-
-    // Cleanup
-    execSync(`rm -rf "${deployDir}"`);
-
-    console.log(chalk.blue("\nNext steps:"));
-    console.log(
-      "  1. Deploy a Worker to list R2 files (see: quick-share library --worker)",
-    );
-    console.log("  2. Update WORKER_URL in your library to use the worker");
-  });
-
-program
-  .command("worker")
-  .description("Deploy a Cloudflare Worker that lists R2 files")
-  .option("-n, --name <name>", "Worker name", "quick-share-api")
-  .action(async (options) => {
-    console.log(chalk.blue("⚡ Deploying API Worker...\n"));
-
-    // Check for wrangler
-    try {
-      execSync("which wrangler", { stdio: "ignore" });
-    } catch (e) {
-      console.log(chalk.yellow("Installing wrangler..."));
-      execSync("npm install -g wrangler", { stdio: "inherit" });
-    }
-
-    const config = validateConfig();
-    const workerContent = `addEventListener("fetch", (event) => {
-  event.respondWith(handleRequest(event.request));
-});
-
-async function handleRequest(request) {
-  const url = new URL(request.url);
-  
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+function parseSetupServiceOptions(argv) {
+  const options = {
+    name: "quick-share-api",
+    bucket: "quick-share-assets",
+    publicUrl: "",
+    corsOrigin: "*",
+    noDeploy: false,
+    skipBucketCreate: false,
+    noInstall: false,
   };
 
-  if (request.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === "--name") {
+      options.name = requireOptionValue(argv, index, value);
+      index += 1;
+    } else if (value === "--bucket") {
+      options.bucket = requireOptionValue(argv, index, value);
+      index += 1;
+    } else if (value === "--public-url") {
+      options.publicUrl = trimSlash(requireOptionValue(argv, index, value));
+      index += 1;
+    } else if (value === "--cors-origin") {
+      options.corsOrigin = requireOptionValue(argv, index, value);
+      index += 1;
+    } else if (value === "--no-deploy") {
+      options.noDeploy = true;
+    } else if (value === "--skip-bucket-create") {
+      options.skipBucketCreate = true;
+    } else if (value === "--no-install") {
+      options.noInstall = true;
+    } else {
+      throw new Error(`Unknown setup-service option: ${value}`);
+    }
   }
 
-  if (url.pathname !== "/files" && url.pathname !== "/files.json") {
-    return new Response("Not Found", { status: 404 });
+  return options;
+}
+
+function requireOptionValue(argv, index, flag) {
+  const value = argv[index + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${flag} requires a value`);
+  }
+  return value;
+}
+
+function ensureWrangler(options) {
+  const localWrangler = path.join(
+    REPO_ROOT,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "wrangler.cmd" : "wrangler",
+  );
+  if (fs.existsSync(localWrangler)) {
+    return { command: localWrangler, args: [] };
   }
 
-  try {
-    const list = await R2_BUCKET.list({ limit: 1000 });
-    
-    const files = list.objects.map(obj => ({
-      name: obj.key,
-      size: obj.size,
-      uploadedAt: obj.uploaded,
-    }));
-    
-    return new Response(JSON.stringify({ files }, null, 2), {
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+  const globalCheck = spawnSync("wrangler", ["--version"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (globalCheck.status === 0) {
+    return { command: "wrangler", args: [] };
   }
-}`;
 
-    // Write wrangler.toml
-    const tempDir = require("os").tmpdir();
-    const workerDir = path.join(tempDir, "quick-share-worker");
-    execSync(`rm -rf "${workerDir}" && mkdir -p "${workerDir}"`);
+  if (options.noInstall) {
+    throw new Error("Wrangler is not installed. Install it or rerun without --no-install.");
+  }
 
-    const wranglerToml = `
-name = "${options.name}"
-main = "index.js"
-compatibility_date = "2023-12-01"
+  console.log("Wrangler not found. Installing local dev dependency...");
+  runCommand("npm", ["install", "--save-dev", "wrangler"], {
+    allowFailure: false,
+    cwd: REPO_ROOT,
+  });
+
+  if (!fs.existsSync(localWrangler)) {
+    throw new Error("Wrangler install completed but local binary was not found.");
+  }
+  return { command: localWrangler, args: [] };
+}
+
+function writeWranglerToml(options) {
+  const toml = `name = "${options.name}"
+main = "assets/library/worker.js"
+compatibility_date = "2026-06-30"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
-bucket_name = "${config.bucketName}"
+bucket_name = "${options.bucket}"
+
+[vars]
+SERVICE_NAME = "quick-share"
+PUBLIC_BASE_URL = "${options.publicUrl}"
+CORS_ORIGIN = "${options.corsOrigin}"
 `;
 
-    fs.writeFileSync(path.join(workerDir, "wrangler.toml"), wranglerToml);
-    fs.writeFileSync(path.join(workerDir, "index.js"), workerContent);
+  fs.writeFileSync(path.join(REPO_ROOT, "wrangler.toml"), toml);
+}
 
-    console.log(chalk.blue("Deploying worker..."));
-    execSync(`cd "${workerDir}" && wrangler deploy`, { stdio: "inherit" });
+function runCommand(command, commandArgs, options = {}) {
+  const result = spawnSync(command, commandArgs, {
+    cwd: options.cwd || process.cwd(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const output = `${result.stdout || ""}${result.stderr || ""}`;
+  if (result.error && !options.allowFailure) {
+    throw result.error;
+  }
+  if (result.status !== 0 && !options.allowFailure) {
+    throw new Error(`${command} ${commandArgs.join(" ")} failed:\n${output}`);
+  }
+  return {
+    status: result.status ?? 1,
+    output,
+  };
+}
 
-    console.log(chalk.green("\n✓ Worker deployed!"));
-    console.log(chalk.blue("\nWorker URL:"));
-    console.log(
-      chalk.white(
-        `  https://${options.name}.${config.accountId}.workers.dev/files`,
-      ),
+function findWorkerUrl(output, name) {
+  const urls = output.match(/https:\/\/[^\s]+\.workers\.dev/g) || [];
+  return urls.find((url) => url.includes(name)) || urls[0] || "";
+}
+
+function initProject(argv) {
+  const apiUrl = trimSlash(argv.find((arg) => !arg.startsWith("--")) || "");
+  if (!apiUrl) {
+    throw new Error("Usage: quick-share init <api-url> [prefix] [--project <dir>]");
+  }
+
+  const nonFlags = argv.filter((arg) => !arg.startsWith("--"));
+  const prefix = nonFlags[1] || "";
+  const projectFlagIndex = argv.indexOf("--project");
+  const projectDir =
+    projectFlagIndex >= 0 && argv[projectFlagIndex + 1]
+      ? path.resolve(argv[projectFlagIndex + 1])
+      : process.cwd();
+
+  if (!fs.existsSync(projectDir)) {
+    throw new Error(`Project directory does not exist: ${projectDir}`);
+  }
+
+  const configPath = path.join(projectDir, CONFIG_NAME);
+  const config = {
+    schemaVersion: "1.0",
+    apiUrl,
+    defaultPrefix: prefix,
+    manifestUrl: `${apiUrl}/.well-known/quick-share.json`,
+    healthUrl: `${apiUrl}/health`,
+    filesUrl: `${apiUrl}/files`,
+  };
+
+  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+  upsertAgentNote(projectDir, apiUrl, prefix);
+
+  console.log("Quick Share configured");
+  console.log(`  Config: ${configPath}`);
+  console.log(`  API:    ${apiUrl}`);
+  console.log(`  Prefix: ${prefix || "none"}`);
+}
+
+function upsertAgentNote(projectDir, apiUrl, prefix) {
+  const agentsPath = path.join(projectDir, "AGENTS.md");
+  const note = `
+## Quick Share
+
+Use Quick Share for shared public assets in this project.
+
+- Config: \`${CONFIG_NAME}\`
+- Base API: \`${apiUrl}\`
+- Default prefix: \`${prefix || "none"}\`
+- CLI: \`quick-share files\`, \`quick-share urls\`, \`quick-share images\`
+`;
+
+  if (!fs.existsSync(agentsPath)) {
+    fs.writeFileSync(agentsPath, `# Project Agent Notes\n${note}`);
+    return;
+  }
+
+  const existing = fs.readFileSync(agentsPath, "utf8");
+  if (existing.includes("## Quick Share")) return;
+  fs.writeFileSync(agentsPath, `${existing.replace(/\s*$/, "")}\n${note}`);
+}
+
+function parseListOptions(argv, config) {
+  const options = {
+    prefix: config.defaultPrefix || "",
+    limit: 1000,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === "--limit") {
+      options.limit = Number.parseInt(argv[index + 1] || "", 10);
+      index += 1;
+    } else if (value === "--json") {
+      options.json = true;
+    } else if (!value.startsWith("--")) {
+      options.prefix = value;
+    }
+  }
+
+  if (!Number.isFinite(options.limit) || options.limit < 1 || options.limit > 1000) {
+    throw new Error("--limit must be a number from 1 to 1000");
+  }
+
+  return options;
+}
+
+async function listFiles(config, options) {
+  const search = new URLSearchParams();
+  search.set("limit", String(options.limit || 1000));
+  if (options.prefix) search.set("prefix", options.prefix);
+  return fetchJson(config, `/files?${search}`);
+}
+
+async function fetchJson(config, route) {
+  const response = await fetch(`${config.apiUrl}${route}`);
+  const text = await response.text();
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Expected JSON from ${route}, got: ${text.slice(0, 120)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status} from ${route}`);
+  }
+
+  return data;
+}
+
+function loadConfig() {
+  const configPath = findConfigPath(process.cwd());
+  const fileConfig = configPath
+    ? JSON.parse(fs.readFileSync(configPath, "utf8"))
+    : {};
+  const apiUrl = trimSlash(process.env.QUICK_SHARE_API_URL || fileConfig.apiUrl || "");
+
+  if (!apiUrl) {
+    throw new Error(
+      `No Quick Share config found. Run: quick-share init <api-url> [prefix]`,
     );
+  }
 
-    // Cleanup
-    execSync(`rm -rf "${workerDir}"`);
+  return {
+    ...fileConfig,
+    configPath: configPath || null,
+    apiUrl,
+    defaultPrefix: process.env.QUICK_SHARE_PREFIX || fileConfig.defaultPrefix || "",
+  };
+}
 
-    console.log(chalk.blue("\nNow update your library:"));
-    console.log(chalk.white(`  quick-share library`));
+function findConfigPath(startDir) {
+  let dir = startDir;
+  while (true) {
+    const candidate = path.join(dir, CONFIG_NAME);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+function selectFile(files, selector) {
+  const index = Number.parseInt(selector, 10);
+  if (Number.isInteger(index) && String(index) === selector) {
+    return files[index - 1];
+  }
+
+  const exact = files.find((file) => file.name === selector);
+  if (exact) return exact;
+  return files.find((file) => file.name.includes(selector));
+}
+
+function printFileTable(files) {
+  if (!files.length) {
+    console.log("No files found.");
+    return;
+  }
+
+  const rows = files.map((file, index) => ({
+    index: String(index + 1),
+    name: file.name,
+    size: formatSize(file.size),
+    type: file.mimeType || "-",
+    url: file.url || "-",
+  }));
+
+  const widths = {
+    index: Math.max(1, ...rows.map((row) => row.index.length)),
+    name: Math.min(52, Math.max(4, ...rows.map((row) => row.name.length))),
+    size: Math.max(4, ...rows.map((row) => row.size.length)),
+    type: Math.min(28, Math.max(4, ...rows.map((row) => row.type.length))),
+  };
+
+  console.log(
+    `${pad("#", widths.index)}  ${pad("Name", widths.name)}  ${pad("Size", widths.size)}  ${pad("Type", widths.type)}  URL`,
+  );
+  for (const row of rows) {
+    console.log(
+      `${pad(row.index, widths.index)}  ${pad(truncate(row.name, widths.name), widths.name)}  ${pad(row.size, widths.size)}  ${pad(truncate(row.type, widths.type), widths.type)}  ${row.url}`,
+    );
+  }
+}
+
+function pad(value, width) {
+  return String(value).padEnd(width, " ");
+}
+
+function truncate(value, width) {
+  if (value.length <= width) return value;
+  return `${value.slice(0, Math.max(0, width - 3))}...`;
+}
+
+function formatSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "-";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)}${units[index]}`;
+}
+
+function openUrl(url) {
+  const commandByPlatform = {
+    darwin: "open",
+    linux: "xdg-open",
+    win32: "cmd",
+  };
+  const command = commandByPlatform[process.platform];
+  if (!command) throw new Error(`Cannot open URLs on ${process.platform}`);
+  const args = process.platform === "win32" ? ["/c", "start", url] : [url];
+  spawnSync(command, args, { stdio: "ignore" });
+}
+
+function copyText(text) {
+  const copyCommand =
+    process.platform === "darwin"
+      ? ["pbcopy", []]
+      : process.platform === "win32"
+        ? ["clip", []]
+        : ["xclip", ["-selection", "clipboard"]];
+  const result = spawnSync(copyCommand[0], copyCommand[1], {
+    input: text,
+    stdio: ["pipe", "ignore", "ignore"],
   });
+  if (result.error) {
+    const fallback = path.join(os.tmpdir(), "quick-share-url.txt");
+    fs.writeFileSync(fallback, text);
+    console.error(`Clipboard unavailable. URL written to ${fallback}`);
+  }
+}
 
-// Default action - if just a file path is provided
-program
-  .arguments("<file>")
-  .description("Quickly upload a file (shortcut)")
-  .action(async (file) => {
-    if (!fs.existsSync(file)) {
-      console.error(chalk.red("Error: File not found -"), file);
-      process.exit(1);
-    }
+function printJson(value) {
+  console.log(JSON.stringify(value, null, 2));
+}
 
-    try {
-      validateConfig();
-    } catch (e) {
-      console.log(chalk.yellow("⚠ Configuration required"));
-      console.log("Run: quick-share setup\n");
-      process.exit(1);
-    }
-
-    // Delegate to upload command
-    program.parse(["node", "quick-share", "upload", file]);
-  });
-
-program.parse();
+function trimSlash(value) {
+  return value.replace(/\/+$/, "");
+}

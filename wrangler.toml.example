@@ -1,0 +1,12 @@
+name = "quick-share-api"
+main = "assets/library/worker.js"
+compatibility_date = "2026-06-30"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "client-images"
+
+[vars]
+SERVICE_NAME = "quick-share"
+PUBLIC_BASE_URL = "https://YOUR-PUBLIC-BUCKET.r2.dev"
+CORS_ORIGIN = "https://quick-share-library.pages.dev"

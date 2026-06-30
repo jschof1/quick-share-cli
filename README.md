@@ -1,263 +1,209 @@
-![Quick Share CLI](assets/banner.svg)
+# Quick Share CLI
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/quick-share-cli">
-    <img src="https://img.shields.io/npm/v/quick-share-cli.svg?style=for-the-badge&color=blue" alt="NPM Version">
-  </a>
-  <a href="https://www.npmjs.com/package/quick-share-cli">
-    <img src="https://img.shields.io/npm/dt/quick-share-cli.svg?style=for-the-badge&color=green" alt="NPM Downloads">
-  </a>
-  <a href="https://github.com/jack/quick-share-cli/actions">
-    <img src="https://img.shields.io/github/workflow/status/jack/quick-share-cli/CI?style=for-the-badge" alt="Build Status">
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/jack/quick-share-cli.svg?style=for-the-badge&color=yellow" alt="License">
-  </a>
-</p>
+Quick Share is a small CLI-first tool for making shared Cloudflare R2 assets easy to find from any project.
 
-<p align="center">
-  <strong>⚡ Lightning-fast file sharing via Cloudflare R2</strong>
-</p>
+The goal is simple: once a project is configured, agents and developers can run boring commands like `quick-share images` or `quick-share urls` from the project root. No remembered bucket URLs, no copied curl snippets, no custom integration work per project.
 
-<p align="center">
-  Upload any file and get instant shareable links. Supports images, videos, documents, and more.
-</p>
+## What It Provides
 
----
+- `quick-share init` to configure any project in one command
+- `quick-share setup-service` to prepare the Cloudflare Worker/R2 service with Wrangler
+- `quick-share health` to check the hosted Worker
+- `quick-share files` to list shared files
+- `quick-share urls` to print public URLs
+- `quick-share images` to print public image URLs
+- `quick-share open <file>` and `quick-share copy <file>` for quick use
+- `.quick-share.json` project config discovered from the current directory or parent folders
+- Optional browser library for humans
+- Read-only Cloudflare Worker API backed by R2
 
-## ✨ Features
+## Install Locally
 
-- ⚡ **Lightning Fast** - Upload files instantly using rclone
-- 📁 **Any File Type** - Images, videos, PDFs, archives, documents
-- 🔗 **Instant Links** - Get public URLs immediately after upload
-- 📋 **Smart Output** - Markdown, HTML, and embed codes auto-generated
-- 🎨 **Beautiful CLI** - Colorful output with progress indicators
-- 🔒 **Secure** - Credentials stored with 600 permissions
-- 📱 **Cross-Platform** - macOS and Linux support
-- 🚀 **Multiple Aliases** - Use `quick-share`, `qshare`, or `share`
-
-## 📦 Installation
-
-### Via NPM (Recommended)
+From this repo:
 
 ```bash
-npm install -g quick-share-cli
+npm link
 ```
 
-### Via Yarn
+Then check:
 
 ```bash
-yarn global add quick-share-cli
+quick-share help
 ```
 
-### Via Homebrew (Coming Soon)
+Without linking, use:
 
 ```bash
-brew tap jack/quick-share
-brew install quick-share-cli
+npm run quick-share -- help
 ```
 
-### Prerequisites
+## Smooth Project Setup
 
-You'll need [rclone](https://rclone.org/) installed:
+If the hosted Worker does not exist yet, set up the service first:
 
 ```bash
-# macOS
-brew install rclone
-
-# Linux
-curl https://rclone.org/install.sh | sudo bash
-
-# Windows (via WSL)
-winget install Rclone.Rclone
+quick-share setup-service --bucket quick-share-assets --public-url https://YOUR-PUBLIC-BUCKET.r2.dev
 ```
 
-## 🚀 Quick Start
+This checks for Wrangler, installs it locally if needed, checks Cloudflare authentication, creates the R2 bucket, writes `wrangler.toml`, and deploys the Worker.
 
-### 1. Configure
-
-Run the setup wizard to configure your Cloudflare R2 credentials:
+If Cloudflare auth is not ready, the CLI will stop and tell you to use one of:
 
 ```bash
-quick-share setup
+wrangler login
+export CLOUDFLARE_API_TOKEN=your_token_here
 ```
 
-You'll need:
+Cloudflare documents R2 public development URLs as a dashboard setting, so if you do not provide `--public-url`, the Worker can list files but file objects will not include public asset URLs yet.
 
-- Cloudflare Account ID
-- R2 Access Key ID
-- R2 Secret Access Key
-- Bucket Name
-- Public URL (e.g., `https://pub-xxxxx.r2.dev`)
-
-**Get credentials:** Go to [Cloudflare Dashboard](https://dash.cloudflare.com/) → R2 → Manage R2 API Tokens
-
-### 2. Upload
+Configure Hermes, OpenClaw, Codex, Claude project folders, or any other repo:
 
 ```bash
-# Upload any file
-quick-share photo.png
-quick-share document.pdf
-quick-share video.mp4
-
-# Or use shortcuts
-qshare archive.zip
-share presentation.pptx
+quick-share init https://YOUR-WORKER.workers.dev hermes/ --project /Users/jack/Documents/GitHub/hermes
+quick-share init https://YOUR-WORKER.workers.dev openclaw/ --project /Users/jack/Documents/GitHub/openclaw
 ```
 
-## 📖 Usage
+That writes:
 
-### Basic Upload
+- `.quick-share.json`
+- a short `AGENTS.md` Quick Share note, if one is not already present
+
+After setup, anyone can use the project naturally:
 
 ```bash
-quick-share <file>
+cd /Users/jack/Documents/GitHub/hermes
+quick-share health
+quick-share images
+quick-share urls
+quick-share files handovers/
 ```
 
-### With Custom Config
+## Daily CLI Usage
+
+List files using the project default prefix:
 
 ```bash
-quick-share upload myfile.pdf --config ./custom-config.json
+quick-share files
 ```
 
-### View Current Config
+List files under another prefix:
 
 ```bash
-quick-share config
+quick-share files client-name/
 ```
 
-## 🎯 Examples
-
-### Upload an Image
+Print URLs only:
 
 ```bash
-$ quick-share screenshot.png
-
-Uploading screenshot.png...
-✓ Upload complete!
-
-URL:      https://pub-xxxxx.r2.dev/screenshot.png
-Size:     245 KB
-Type:     image/png
-
-Markdown: ![file](https://pub-xxxxx.r2.dev/screenshot.png)
-HTML:     <img src="https://pub-xxxxx.r2.dev/screenshot.png" alt="file">
-
-✓ URL copied to clipboard
+quick-share urls
 ```
 
-### Upload a Video
+Print image URLs only:
 
 ```bash
-$ quick-share demo.mp4
-
-Uploading demo.mp4...
-✓ Upload complete!
-
-URL:      https://pub-xxxxx.r2.dev/demo.mp4
-Size:     15.2 MB
-Type:     video/mp4
-
-Video:    <video controls><source src="https://pub-xxxxx.r2.dev/demo.mp4" type="video/mp4"></video>
-
-✓ URL copied to clipboard
+quick-share images
 ```
 
-### Upload a Document
+Open or copy by exact name, partial name, or list index:
 
 ```bash
-$ quick-share report.pdf
-
-Uploading report.pdf...
-✓ Upload complete!
-
-URL:      https://pub-xxxxx.r2.dev/report.pdf
-Size:     2.4 MB
-Type:     application/pdf
-
-✓ URL copied to clipboard
+quick-share open logo.png
+quick-share copy "hero"
+quick-share copy 1
 ```
 
-## 🔧 Configuration
+Show which config the CLI found:
 
-Configuration is stored securely in `~/.quick-share/config.json` with 600 permissions.
+```bash
+quick-share where
+```
 
-### Configuration File Format
+## Service Setup
+
+Preferred:
+
+```bash
+quick-share setup-service --bucket quick-share-assets --public-url https://YOUR-PUBLIC-BUCKET.r2.dev
+```
+
+Useful options:
+
+```bash
+quick-share setup-service --name quick-share-api
+quick-share setup-service --bucket client-images
+quick-share setup-service --cors-origin https://quick-share-library.pages.dev
+quick-share setup-service --no-deploy
+quick-share setup-service --skip-bucket-create
+quick-share setup-service --no-install
+```
+
+Manual fallback:
+
+1. Copy `wrangler.toml.example` to `wrangler.toml`.
+2. Edit `bucket_name`, `PUBLIC_BASE_URL`, and `CORS_ORIGIN`.
+3. Run `wrangler login` or set `CLOUDFLARE_API_TOKEN`.
+4. Run `wrangler r2 bucket create <bucket>`.
+5. Run `wrangler deploy`.
+
+## Browser Library
+
+Preview locally:
+
+```bash
+npm run preview
+```
+
+Deploy the static browser library:
+
+```bash
+QUICK_SHARE_WORKER_URL="https://YOUR-WORKER.workers.dev/files" \
+QUICK_SHARE_PUBLIC_URL="https://YOUR-PUBLIC-BUCKET.r2.dev" \
+./scripts/deploy-library.sh quick-share-library
+```
+
+## API Contract
+
+The CLI talks to these read-only endpoints:
+
+- `GET /health`
+- `GET /.well-known/quick-share.json`
+- `GET /files`
+- `GET /files?format=ndjson`
+- `GET /openapi.json`
+
+`GET /files` returns:
 
 ```json
 {
-  "accountId": "your-account-id",
-  "accessKeyId": "your-access-key-id",
-  "secretAccessKey": "your-secret-access-key",
-  "bucketName": "my-bucket",
-  "publicUrl": "https://pub-xxxxx.r2.dev",
-  "endpoint": "https://your-account-id.r2.cloudflarestorage.com"
+  "service": "quick-share",
+  "schemaVersion": "1.0",
+  "files": [
+    {
+      "name": "example.jpg",
+      "size": 12345,
+      "uploadedAt": "2026-06-30T12:00:00.000Z",
+      "etag": "abc123",
+      "httpEtag": "\"abc123\"",
+      "mimeType": "image/jpeg",
+      "url": "https://pub-example.r2.dev/example.jpg"
+    }
+  ],
+  "truncated": false,
+  "cursor": null,
+  "next": null
 }
 ```
 
-### Multiple Buckets
+## Boundaries
 
-You can maintain multiple configuration files for different projects:
+- Quick Share is read-only.
+- It lists metadata from R2 at request time.
+- Public URLs only work while the bucket/object/domain remains public.
+- It is not an auth system.
+- Do not expose private client files without adding authentication and signed URLs.
 
-```bash
-# Personal bucket
-quick-share upload photo.jpg --config ~/.quick-share/personal.json
-
-# Work bucket
-quick-share upload report.pdf --config ~/.quick-share/work.json
-```
-
-See [examples/](examples/) for more configuration examples.
-
-## 📁 Supported File Types
-
-| Category      | Types                                |
-| ------------- | ------------------------------------ |
-| **Images**    | JPG, PNG, GIF, WebP, SVG             |
-| **Videos**    | MP4, MOV, WebM                       |
-| **Audio**     | MP3, WAV, OGG                        |
-| **Documents** | PDF, TXT, JSON, DOC, DOCX, XLS, XLSX |
-| **Archives**  | ZIP, TAR, GZ                         |
-| **Other**     | Any file type supported!             |
-
-## 🛠️ Development
+## Checks
 
 ```bash
-# Clone the repository
-git clone https://github.com/jack/quick-share-cli.git
-cd quick-share-cli
-
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Run linting
-npm run lint
+npm run check
 ```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
-
-## 📝 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting PRs.
-
-## 📄 License
-
-MIT © [Jack](LICENSE)
-
-## 🙏 Acknowledgments
-
-- [Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) - Object storage
-- [rclone](https://rclone.org/) - rsync for cloud storage
-- [Commander.js](https://github.com/tj/commander.js/) - CLI framework
-
----
-
-<p align="center">
-  Made with ⚡ by <a href="https://github.com/jack">Jack</a>
-</p>
