@@ -11,7 +11,7 @@ import {
 } from "@raycast/api";
 import { useRef, useState } from "react";
 import { saveUpload } from "./history";
-import { Upload, uploadFile } from "./uploader";
+import { Upload, UploadPreferences, uploadFile } from "./uploader";
 
 export default function Command() {
   const [busy, setBusy] = useState(false);
@@ -31,7 +31,10 @@ export default function Command() {
       title: "Uploading file…",
     });
     try {
-      const upload = await uploadFile(values.files[0], getPreferenceValues());
+      const upload = await uploadFile(
+        values.files[0],
+        getPreferenceValues<UploadPreferences>(),
+      );
       setResult(upload);
       // A clipboard/history failure must not conceal an already completed upload.
       const outcomes = await Promise.allSettled([
@@ -86,7 +89,7 @@ export default function Command() {
     >
       <Form.Description
         title="Public sharing"
-        text="Anyone with the link can access the uploaded file. Each upload gets a unique link and does not replace existing files."
+        text="Uploads go to the Cloudflare bucket configured in your preferences. Anyone with the link can access the uploaded file. Each upload gets a unique link and does not replace existing files."
       />
       <Form.FilePicker
         id="files"

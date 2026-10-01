@@ -3,23 +3,32 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { objectKey, parseConfig, publicUrl, uploadFile } from "../src/uploader";
-const config =
-  'BUCKET_NAME="test-bucket"\nR2_ENDPOINT="https://example.r2.cloudflarestorage.com"\nR2_ACCESS_KEY_ID="test-key"\nR2_SECRET_ACCESS_KEY="test-secret"\nR2_PUBLIC_URL="https://example.com/"';
-test("parses setup-r2 config without executing shell expressions", () => {
-  assert.equal(parseConfig(config).BUCKET_NAME, "test-bucket");
+import {
+  objectKey,
+  configFromPreferences,
+  publicUrl,
+  uploadFile,
+} from "../src/uploader";
+const config = {
+  bucketName: "test-bucket",
+  endpoint: "https://example.r2.cloudflarestorage.com",
+  accessKeyId: "test-key",
+  secretAccessKey: "test-secret",
+  publicUrl: "https://example.com/",
+};
+test("requires each user's own configuration with no shared defaults", () => {
+  assert.equal(configFromPreferences(config).BUCKET_NAME, "test-bucket");
+  assert.throws(() => configFromPreferences({}), /Missing/);
+  for (const key of Object.keys(config)) {
+    assert.throws(
+      () => configFromPreferences({ ...config, [key]: "" }),
+      /Missing/,
+    );
+  }
   assert.throws(
-    () => parseConfig(config.replace("test-secret", "$(echo unsafe)")),
-    /literal/,
-  );
-  assert.throws(
-    () =>
-      parseConfig(
-        config.replace("https://example.com/", "http://example.com/"),
-      ),
+    () => configFromPreferences({ ...config, publicUrl: "http://example.com" }),
     /HTTPS/,
   );
-  assert.throws(() => parseConfig("BUCKET_NAME=test"), /Missing/);
 });
 test("unique upload keys and encoded public links", () => {
   assert.notEqual(objectKey("/tmp/file.txt"), objectKey("/tmp/file.txt"));
@@ -31,20 +40,24 @@ test("unique upload keys and encoded public links", () => {
 test("passes paths as arguments and credentials only via environment; sanitizes failures", async () => {
   const dir = await mkdtemp(join(tmpdir(), "raycast-upload-"));
   try {
-    const configPath = join(dir, "config");
     const file = join(dir, "file $(touch unwanted) & #.txt");
     const rclonePath = join(dir, "rclone");
     const capture = join(dir, "capture.json");
-    await writeFile(configPath, config);
     await writeFile(file, "test");
     await writeFile(
       rclonePath,
       `#!/usr/bin/env node\nrequire('fs').writeFileSync(${JSON.stringify(capture)},JSON.stringify({args:process.argv.slice(2),hasCredentials:process.env.RCLONE_S3_SECRET_ACCESS_KEY==='test-secret'}));`,
       { mode: 0o755 },
     );
-    const result = await uploadFile(file, { configPath, rclonePath });
+    const result = await uploadFile(file, { ...config, rclonePath });
     const recorded = JSON.parse(await readFile(capture, "utf8"));
     assert.equal(recorded.args[1], file);
+    assert.ok(recorded.args[2].startsWith(":s3:test-bucket/raycast/"));
+    assert.ok(
+      recorded.args.includes(
+        "--s3-endpoint=https://example.r2.cloudflarestorage.com",
+      ),
+    );
     assert.equal(recorded.hasCredentials, true);
     assert.equal(recorded.args.join(" ").includes("test-secret"), false);
     assert.equal(result.size, 4);
@@ -53,13 +66,13 @@ test("passes paths as arguments and credentials only via environment; sanitizes 
       mode: 0o755,
     });
     await assert.rejects(
-      uploadFile(file, { configPath, rclonePath }),
+      uploadFile(file, { ...config, rclonePath }),
       (error: Error) =>
         error.message.includes("Upload failed") &&
         !error.message.includes("test-secret"),
     );
     await assert.rejects(
-      uploadFile(dir, { configPath, rclonePath }),
+      uploadFile(dir, { ...config, rclonePath }),
       /regular file/,
     );
   } finally {

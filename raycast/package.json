@@ -29,11 +29,39 @@
   ],
   "preferences": [
     {
-      "name": "configPath",
-      "title": "R2 Configuration File",
-      "description": "Existing shell uploader configuration. Leave blank to use ~/.r2-config.",
+      "name": "bucketName",
+      "title": "Your R2 Bucket",
+      "description": "Bucket name in your own Cloudflare account.",
       "type": "textfield",
-      "required": false
+      "required": true
+    },
+    {
+      "name": "endpoint",
+      "title": "Your R2 S3 Endpoint",
+      "description": "Copy the S3 API endpoint from your own Cloudflare R2 dashboard.",
+      "type": "textfield",
+      "required": true
+    },
+    {
+      "name": "accessKeyId",
+      "title": "Your R2 Access Key ID",
+      "description": "Use a token scoped to your own bucket.",
+      "type": "password",
+      "required": true
+    },
+    {
+      "name": "secretAccessKey",
+      "title": "Your R2 Secret Access Key",
+      "description": "Secret for your own bucket-scoped R2 token.",
+      "type": "password",
+      "required": true
+    },
+    {
+      "name": "publicUrl",
+      "title": "Your Public Bucket URL",
+      "description": "Public URL or custom domain belonging to your bucket.",
+      "type": "textfield",
+      "required": true
     },
     {
       "name": "rclonePath",

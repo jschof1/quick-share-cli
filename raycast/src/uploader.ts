@@ -1,6 +1,5 @@
-import { access, readFile, stat } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { constants } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
@@ -21,29 +20,24 @@ export interface Config {
   R2_SECRET_ACCESS_KEY: string;
   R2_PUBLIC_URL: string;
 }
-export function parseConfig(text: string): Config {
-  const values: Record<string, string> = {};
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim() || line.trim().startsWith("#")) continue;
-    const match = line.match(
-      /^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/,
-    );
-    if (!match)
-      throw new Error(
-        "Configuration must contain plain KEY=value assignments.",
-      );
-    let value = match[2];
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    )
-      value = value.slice(1, -1);
-    if (/[$`]/.test(value))
-      throw new Error(
-        "Configuration must use literal values, without shell expressions.",
-      );
-    values[match[1]] = value;
-  }
+export interface UploadPreferences {
+  bucketName: string;
+  endpoint: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  publicUrl: string;
+  rclonePath?: string;
+}
+export function configFromPreferences(
+  preferences: Partial<UploadPreferences>,
+): Config {
+  const values = {
+    BUCKET_NAME: preferences.bucketName?.trim(),
+    R2_ENDPOINT: preferences.endpoint?.trim(),
+    R2_ACCESS_KEY_ID: preferences.accessKeyId?.trim(),
+    R2_SECRET_ACCESS_KEY: preferences.secretAccessKey?.trim(),
+    R2_PUBLIC_URL: preferences.publicUrl?.trim(),
+  };
   for (const key of [
     "BUCKET_NAME",
     "R2_ENDPOINT",
@@ -51,10 +45,11 @@ export function parseConfig(text: string): Config {
     "R2_SECRET_ACCESS_KEY",
     "R2_PUBLIC_URL",
   ]) {
-    if (!values[key]) throw new Error(`Missing ${key} in R2 configuration.`);
+    if (!values[key as keyof typeof values])
+      throw new Error(`Missing ${key} in R2 configuration.`);
   }
   for (const key of ["R2_ENDPOINT", "R2_PUBLIC_URL"]) {
-    const url = new URL(values[key]);
+    const url = new URL(values[key as keyof typeof values]!);
     if (
       url.protocol !== "https:" ||
       url.username ||
@@ -66,7 +61,7 @@ export function parseConfig(text: string): Config {
         `${key} must be an HTTPS URL without credentials, query, or fragment.`,
       );
   }
-  if (!/^[a-z0-9][a-z0-9.-]*$/.test(values.BUCKET_NAME))
+  if (!/^[a-z0-9][a-z0-9.-]*$/.test(values.BUCKET_NAME!))
     throw new Error("Invalid bucket name.");
   return values as unknown as Config;
 }
@@ -75,23 +70,6 @@ export function objectKey(file: string, id: string = randomUUID()): string {
 }
 export function publicUrl(base: string, key: string): string {
   return `${base.replace(/\/+$/, "")}/${key.split("/").map(encodeURIComponent).join("/")}`;
-}
-export async function loadConfig(configPath = ""): Promise<Config> {
-  const file = configPath.trim() || join(homedir(), ".r2-config");
-  try {
-    return parseConfig(
-      await readFile(
-        file.startsWith("~/") ? join(homedir(), file.slice(2)) : file,
-        "utf8",
-      ),
-    );
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT")
-      throw new Error(
-        "R2 config not found. Run setup-r2.sh or set its path in extension preferences.",
-      );
-    throw error;
-  }
 }
 async function findRclone(custom = ""): Promise<string> {
   const candidates = custom
@@ -118,11 +96,11 @@ async function findRclone(custom = ""): Promise<string> {
 }
 export async function uploadFile(
   file: string,
-  preferences: { configPath?: string; rclonePath?: string } = {},
+  preferences: UploadPreferences,
 ): Promise<Upload> {
   const info = await stat(file);
   if (!info.isFile()) throw new Error("Choose a regular file, not a folder.");
-  const config = await loadConfig(preferences.configPath);
+  const config = configFromPreferences(preferences);
   const rclone = await findRclone(preferences.rclonePath);
   const id: string = randomUUID();
   const key = objectKey(file, id);
