@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Quick File Upload to Cloudflare R2
-# Usage: ./upload-image.sh <file>
+# Usage: ./upload-file.sh [file]
 
 set -e
 
@@ -11,22 +11,59 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Check args
-if [ $# -eq 0 ]; then
-    echo "Usage: upload-file <file>"
-    echo "Supports: images, PDFs, videos, documents, archives, etc."
+# On macOS, launching without a path opens the familiar file chooser.
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    echo "Usage: upload-file [file]"
+    echo "Without a file on macOS, opens a file chooser."
+    exit 0
+fi
+if [ $# -gt 1 ]; then
+    echo "Error: Select one file at a time."
     exit 1
 fi
-
-FILE="$1"
+if [ $# -eq 0 ]; then
+    if [ "$(uname -s)" = "Darwin" ] && command -v osascript >/dev/null 2>&1; then
+        if ! FILE=$(osascript -e 'POSIX path of (choose file with prompt "Choose a file to upload and share publicly")'); then
+            echo "Upload cancelled."
+            exit 0
+        fi
+    else
+        echo "Usage: upload-file <file>"
+        echo "Supports: images, PDFs, videos, documents, archives, etc."
+        exit 1
+    fi
+else
+    FILE="$1"
+fi
 
 if [ ! -f "$FILE" ]; then
     echo "Error: File '$FILE' not found"
     exit 1
 fi
 
-# Load config
+# Validate prerequisites before attempting an upload.
+if ! command -v rclone >/dev/null 2>&1; then
+    echo "Error: rclone is required. Install it with: brew install rclone"
+    exit 1
+fi
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 is required to build safe share links."
+    exit 1
+fi
+if [ ! -r "$CONFIG_FILE" ]; then
+    echo "Error: Missing configuration at $CONFIG_FILE. Run setup-r2.sh first."
+    exit 1
+fi
 source "$CONFIG_FILE"
+for KEY in BUCKET_NAME R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_PUBLIC_URL; do
+    if [ -z "${!KEY}" ]; then
+        echo "Error: $KEY is missing from $CONFIG_FILE."
+        exit 1
+    fi
+done
+# Pass credentials through the environment, rather than process arguments.
+export RCLONE_S3_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+export RCLONE_S3_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
 # Get file info
 BASENAME=$(basename "$FILE")
@@ -61,15 +98,13 @@ echo "Uploading $BASENAME ($FILE_SIZE, $MIME_TYPE)..."
 rclone copy "$FILE" ":s3:$BUCKET_NAME" \
     --s3-provider=Cloudflare \
     --s3-endpoint="$R2_ENDPOINT" \
-    --s3-access-key-id="$R2_ACCESS_KEY_ID" \
-    --s3-secret-access-key="$R2_SECRET_ACCESS_KEY" \
-    --s3-acl=public-read \
     --s3-region=auto \
     --s3-no-check-bucket \
     --quiet
 
 # Build URL
-PUBLIC_URL="$R2_PUBLIC_URL/$BASENAME"
+ENCODED_NAME=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$BASENAME")
+PUBLIC_URL="${R2_PUBLIC_URL%/}/$ENCODED_NAME"
 
 # Output
 echo -e "\n${GREEN}✓ Uploaded!${NC}\n"
@@ -93,4 +128,6 @@ elif [[ "$MIME_TYPE" == audio/* ]]; then
 fi
 
 # Copy to clipboard
-echo "$PUBLIC_URL" | pbcopy 2>/dev/null && echo -e "\n${GREEN}✓ URL copied to clipboard${NC}"
+if command -v pbcopy >/dev/null 2>&1 && printf "%s" "$PUBLIC_URL" | pbcopy 2>/dev/null; then
+    echo -e "\n${GREEN}✓ URL copied to clipboard${NC}"
+fi

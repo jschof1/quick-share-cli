@@ -207,3 +207,7 @@ The CLI talks to these read-only endpoints:
 ```bash
 npm run check
 ```
+
+### Local shell uploader (macOS)
+
+Run `./upload-file.sh` to choose a file, or `./upload-file.sh "path/to/file.pdf"` to upload directly. Cancelling exits without uploading. Uses `~/.r2-config`, created by `./setup-r2.sh`. Uploads are public; matching filenames are replaced.
