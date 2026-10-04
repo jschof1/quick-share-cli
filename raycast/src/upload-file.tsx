@@ -15,6 +15,8 @@ import { Upload, UploadPreferences, uploadFile } from "./uploader";
 
 export default function Command() {
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string>();
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<Upload>();
   const lock = useRef(false);
@@ -24,6 +26,7 @@ export default function Command() {
       setError("Choose one file to upload.");
       return;
     }
+    setUploadError(undefined);
     lock.current = true;
     setBusy(true);
     const toast = await showToast({
@@ -48,7 +51,9 @@ export default function Command() {
     } catch (error) {
       toast.style = Toast.Style.Failure;
       toast.title = "Could not upload";
-      toast.message = error instanceof Error ? error.message : "Please retry.";
+      const message = error instanceof Error ? error.message : "Please retry.";
+      toast.message = message;
+      setUploadError(message);
     } finally {
       lock.current = false;
       setBusy(false);
@@ -91,13 +96,20 @@ export default function Command() {
         title="Public sharing"
         text="Uploads go to the Cloudflare bucket configured in your preferences. Anyone with the link can access the uploaded file. Each upload gets a unique link and does not replace existing files."
       />
+      {uploadError && (
+        <Form.Description title="Upload failed" text={uploadError} />
+      )}
       <Form.FilePicker
         id="files"
         title="File"
         allowMultipleSelection={false}
         canChooseDirectories={false}
         error={error}
-        onChange={() => setError(undefined)}
+        value={files}
+        onChange={(selection) => {
+          setFiles(selection);
+          setError(undefined);
+        }}
       />
     </Form>
   );

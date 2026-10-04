@@ -127,7 +127,18 @@ export async function uploadFile(
         maxBuffer: 1024 * 1024,
       },
     );
-  } catch {
+  } catch (error) {
+    const diagnostic = String((error as { stderr?: string }).stderr || "");
+    if (/SignatureDoesNotMatch|InvalidAccessKeyId/.test(diagnostic)) {
+      throw new Error(
+        "R2 rejected the access key or secret. Re-enter both in Quick Share preferences.",
+      );
+    }
+    if (/AccessDenied/.test(diagnostic)) {
+      throw new Error(
+        "R2 denied access. Check that your token has Object Read & Write permission for this bucket.",
+      );
+    }
     // Do not expose process diagnostics or credential material in UI or telemetry.
     throw new Error(
       "Upload failed. Check your connection, R2 credentials, bucket permissions, and rclone path, then retry.",
