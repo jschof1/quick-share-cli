@@ -46,7 +46,7 @@ This writes `.quick-share.json` and adds a short Quick Share section to that pro
 
 ## Important Boundaries
 
-- The Worker API and CLI remain read-only. The macOS shell uploader and `raycast/` extension upload directly to R2. The shell uploader uses its local configuration; Raycast requires each user’s own bucket and credentials in extension preferences.
+- The asset-discovery CLI is read-only: it does not upload, delete, move or overwrite objects. The optional Raycast extension separately uploads a file explicitly chosen by its user to that user's configured public R2 bucket. It uses bucket-scoped preferences, unique object keys and no fallback to shell credentials.
 - Public-first: treat returned URLs as public.
 - Not authentication: do not use this for private client assets without adding signed URLs or auth.
 - Durability depends on the R2 object and public asset domain staying available.
@@ -63,7 +63,3 @@ This writes `.quick-share.json` and adds a short Quick Share section to that pro
 - `quick-share open <filename-or-index> [prefix]`
 - `quick-share copy <filename-or-index> [prefix]`
 - `quick-share where`
-
-## Raycast Extension
-
-The native extension lives in `raycast/`. Run `npm ci`, `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` there with Node >=22.22.2. `npm run dev` registers the commands in Raycast. Uploads are public, use unique keys under `raycast/`, and require explicit per-user preferences with no shared defaults or local config-file fallback. Credentials use Raycast password preferences and the child process environment. History is local to Raycast, capped at 100 items, and clearing it does not delete R2 objects.
