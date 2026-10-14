@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        node-version: [14, 16, 18, 20]
+        node-version: [18, 20, 22, 24]
 
     steps:
       - uses: actions/checkout@v3
@@ -28,13 +28,17 @@ jobs:
         run: npm ci
 
       - name: Run linter
-        run: npm run lint
+        run: npm run check
 
       - name: Run tests
         run: npm test
 
+      - name: Collect native CLI coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '24'
+        run: mkdir -p coverage && node --experimental-test-coverage --test --test-reporter=lcov --test-reporter-destination=coverage/lcov.info test/cli.test.js
+
       - name: Upload coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '18'
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '24'
         uses: codecov/codecov-action@v3
         with:
           file: ./coverage/lcov.info
@@ -72,3 +76,4 @@ jobs:
           body_path: CHANGELOG.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

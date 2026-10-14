@@ -211,3 +211,7 @@ npm run check
 ### Local shell uploader (macOS)
 
 Run `./upload-file.sh` to choose a file, or `./upload-file.sh "path/to/file.pdf"` to upload directly. Cancelling exits without uploading. Uses `~/.r2-config`, created by `./setup-r2.sh`. Uploads are public; matching filenames are replaced.
+
+## Raycast Extension
+
+The macOS extension in [raycast/](raycast/) adds **Upload File** and **Recent Uploads**. Each user supplies their own R2 bucket and credentials in Raycast preferences. It uses rclone, gives each upload a unique public URL, and copies the link. See [installation and development](raycast/README.md). The CLI and Worker API remain read-only.

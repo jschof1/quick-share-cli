@@ -46,7 +46,7 @@ This writes `.quick-share.json` and adds a short Quick Share section to that pro
 
 ## Important Boundaries
 
-- Read-only: no upload, delete, move, or overwrite command exists.
+- The asset-discovery CLI is read-only: it does not upload, delete, move or overwrite objects. The optional Raycast extension separately uploads a file explicitly chosen by its user to that user's configured public R2 bucket. It uses bucket-scoped preferences, unique object keys and no fallback to shell credentials.
 - Public-first: treat returned URLs as public.
 - Not authentication: do not use this for private client assets without adding signed URLs or auth.
 - Durability depends on the R2 object and public asset domain staying available.

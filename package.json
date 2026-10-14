@@ -11,6 +11,10 @@
     "preview": "./scripts/preview-library.sh",
     "quick-share": "node bin/quick-share.js",
     "agent": "node bin/quick-share.js",
-    "install-project": "./scripts/install-project.sh"
+    "install-project": "./scripts/install-project.sh",
+    "test": "node --test test/cli.test.js"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
