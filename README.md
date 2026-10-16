@@ -215,3 +215,16 @@ Run `./upload-file.sh` to choose a file, or `./upload-file.sh "path/to/file.pdf"
 ## Raycast Extension
 
 The macOS extension in [raycast/](raycast/) adds **Upload File** and **Recent Uploads**. Each user supplies their own R2 bucket and credentials in Raycast preferences. It uses rclone, gives each upload a unique public URL, and copies the link. See [installation and development](raycast/README.md). The CLI and Worker API remain read-only.
+
+## Jack's Files deployment
+
+The existing Jack's Files site lives in `assets/jack-files/`. This preserves its
+folder filters and R2 endpoints while adding visible video frames and a preview
+dialog for images, video, audio and PDFs. Other formats offer the original link.
+Video thumbnail loading starts only near the viewport; files are not transcoded.
+
+```bash
+CLOUDFLARE_API_TOKEN="$(secret CLOUDFLARE_PAGES_TOKEN)" wrangler pages deploy assets/jack-files --project-name=jack-files --branch=main
+```
+
+This deploys the library UI only. It does not change the R2 files or Worker.
