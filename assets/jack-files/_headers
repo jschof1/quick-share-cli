@@ -1,0 +1,5 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://pub-347aa0ad8b93489db6fe959dca5c3b05.r2.dev blob: data:; media-src 'self' https://pub-347aa0ad8b93489db6fe959dca5c3b05.r2.dev blob:; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: same-origin
+  Cache-Control: no-cache

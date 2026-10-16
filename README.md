@@ -216,15 +216,46 @@ Run `./upload-file.sh` to choose a file, or `./upload-file.sh "path/to/file.pdf"
 
 The macOS extension in [raycast/](raycast/) adds **Upload File** and **Recent Uploads**. Each user supplies their own R2 bucket and credentials in Raycast preferences. It uses rclone, gives each upload a unique public URL, and copies the link. See [installation and development](raycast/README.md). The CLI and Worker API remain read-only.
 
-## Jack's Files deployment
+## Jack's Files
 
-The existing Jack's Files site lives in `assets/jack-files/`. This preserves its
-folder filters and R2 endpoints while adding visible video frames and a preview
-dialog for images, video, audio and PDFs. Other formats offer the original link.
-Video thumbnail loading starts only near the viewport; files are not transcoded.
+The deployed library lives in `assets/jack-files/` with its Pages configuration in
+`deploy/jack-files/wrangler.json`. The discovery CLI and its read-only Worker remain separate.
+
+- Larger lazy-loaded previews, video durations, readable titles with original filenames,
+  grid/list views, search, folders, type filters, and sorting.
+- Select files to copy their public links or download a ZIP. ZIPs are built in a browser
+  worker, with a visible limit of 100 files / 500 MB to bound browser memory use.
+- Named collections persist selected R2 keys in `.quickshare/collections/<uuid>.json`.
+  Anyone with a collection URL can preview/download it. They reference current objects;
+  they are not immutable copies, private shares, or a separate backup.
+- Uploads and collection creation require the owner's passphrase. Authentication uses
+  an HMAC-signed Secure/HttpOnly/SameSite cookie lasting 30 days. Set `UPLOAD_PASSWORD`
+  using Pages secrets; changing it invalidates all sessions. Use a long random passphrase.
+- Browser uploads use unique `uploads/<uuid>/<filename>` keys and the existing `FILES`
+  R2 binding. They never replace an existing file. Multipart parts are 8 MiB; the app
+  accepts files up to 5 GiB, retries interrupted parts, and supports cancel/retry.
+  The page must remain open; reload does not resume a previous upload. Reload may leave
+  unfinished multipart uploads for bucket lifecycle cleanup; cancel attempts to abort immediately.
+- Everything uploaded is public. The upload credential never belongs in source code,
+  localStorage, collection links, or the public R2 bucket.
+
+Deploy the library and its Pages Worker together:
 
 ```bash
-CLOUDFLARE_API_TOKEN="$(secret CLOUDFLARE_PAGES_TOKEN)" wrangler pages deploy assets/jack-files --project-name=jack-files --branch=main
+CLOUDFLARE_ACCOUNT_ID=1d7541992ccacf0931ee0e385daa5e08 \
+CLOUDFLARE_API_TOKEN="$(secret CLOUDFLARE_PAGES_TOKEN)" npm run deploy:jack-files
 ```
 
-This deploys the library UI only. It does not change the R2 files or Worker.
+Set the upload passphrase through `wrangler pages secret put UPLOAD_PASSWORD --project-name=jack-files`
+from `deploy/jack-files/`, then deploy. Secrets are configured separately for production
+and preview environments. For local development with isolated local R2 storage:
+
+```bash
+cd deploy/jack-files
+wrangler pages dev --r2 FILES --binding UPLOAD_PASSWORD=local-test-passphrase
+```
+
+Run `npm test` and `npm run check`. The tests cover public discovery, authentication,
+origin validation, multipart completion/abort, persistent collections, attachment headers,
+unsafe inline content and ZIP boundaries. The live site also needs browser checks for
+playback, real upload progress, ZIP downloads and mobile layout.

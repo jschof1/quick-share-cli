@@ -7,12 +7,13 @@
     "quick-share": "./bin/quick-share.js"
   },
   "scripts": {
-    "check": "bash -n scripts/deploy-library.sh && bash -n scripts/preview-library.sh && bash -n scripts/quick-share-agent.sh && bash -n scripts/install-project.sh && node --check assets/library/worker.js && node --check bin/quick-share.js",
+    "check": "bash -n scripts/deploy-library.sh && bash -n scripts/preview-library.sh && bash -n scripts/quick-share-agent.sh && bash -n scripts/install-project.sh && node --check assets/library/worker.js && node --check bin/quick-share.js && node --check assets/jack-files/_worker.js && node --check assets/jack-files/app.js && node --check assets/jack-files/archive.js && node --check assets/jack-files/archive-worker.js",
     "preview": "./scripts/preview-library.sh",
     "quick-share": "node bin/quick-share.js",
     "agent": "node bin/quick-share.js",
     "install-project": "./scripts/install-project.sh",
-    "test": "node --test test/cli.test.js"
+    "test": "node --test test/cli.test.js test/jack-files.test.js",
+    "deploy:jack-files": "cd deploy/jack-files && wrangler pages deploy --project-name=jack-files --branch=main"
   },
   "engines": {
     "node": ">=18"

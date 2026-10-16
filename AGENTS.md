@@ -63,3 +63,12 @@ This writes `.quick-share.json` and adds a short Quick Share section to that pro
 - `quick-share open <filename-or-index> [prefix]`
 - `quick-share copy <filename-or-index> [prefix]`
 - `quick-share where`
+
+## Jack’s Files browser application
+
+The separate Pages app in `assets/jack-files/` has authenticated upload and collection
+creation routes. Its config is `deploy/jack-files/wrangler.json`; deploy using
+`npm run deploy:jack-files` with the existing scoped Cloudflare credential.
+The public library and collection reads remain public. Browser writes use unique R2
+keys and never overwrite files. Do not confuse this with the read-only discovery CLI.
+Keep upload secrets out of the repository and public storage.

@@ -1,0 +1,11 @@
+{
+  "name": "jack-files",
+  "pages_build_output_dir": "../../assets/jack-files",
+  "compatibility_date": "2026-02-21",
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "client-images"
+    }
+  ]
+}
