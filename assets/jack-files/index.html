@@ -247,6 +247,8 @@
       font-size: 0.8rem;
     }
     
+    .file-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    a.copy-btn { text-decoration: none; }
     .copy-btn {
       opacity: 1;
       background: var(--accent);
@@ -349,7 +351,7 @@
   <dialog id="previewDialog" aria-labelledby="previewTitle">
     <div class="preview-header"><h2 id="previewTitle"></h2><button id="closePreview" type="button" aria-label="Close preview">✕</button></div>
     <div id="previewBody"></div>
-    <div class="preview-actions"><a id="previewOpen" target="_blank" rel="noopener">Open original ↗</a><button id="previewCopy" type="button">Copy link</button><span id="previewStatus" role="status"></span></div>
+    <div class="preview-actions"><a id="previewOpen" target="_blank" rel="noopener">Open original ↗</a><a id="previewDownload">Download</a><button id="previewCopy" type="button">Copy link</button><span id="previewStatus" role="status"></span></div>
   </dialog>
   <script>
     const PUBLIC_URL = 'https://pub-347aa0ad8b93489db6fe959dca5c3b05.r2.dev';
@@ -466,6 +468,10 @@
       return PUBLIC_URL + '/' + file.name.split('/').map(encodeURIComponent).join('/');
     }
 
+    function downloadUrl(file) {
+      return '/download?file=' + encodeURIComponent(file.name);
+    }
+
     let thumbnailObserver;
     function renderFiles() {
       const filesDiv = document.getElementById('files');
@@ -490,7 +496,7 @@
           <button class="file-preview" type="button" data-preview="${index}" aria-label="Preview ${name}">${media}</button>
           <div class="file-info">
             <div class="file-name" title="${name}">${name}</div>
-            <div class="file-meta"><span>${formatSize(file.size)}</span><button class="copy-btn" type="button" data-copy="${index}">Copy link</button></div>
+            <div class="file-meta"><span>${formatSize(file.size)}</span><div class="file-buttons"><a class="copy-btn" href="${escapeHtml(downloadUrl(file))}" download>Download</a><button class="copy-btn" type="button" data-copy="${index}">Copy link</button></div></div>
           </div></article>`;
       }).join('');
       filesDiv.querySelectorAll('[data-preview]').forEach(button => button.addEventListener('click', () => openPreview(filtered[Number(button.dataset.preview)])));
@@ -519,6 +525,8 @@
       document.getElementById('previewStatus').textContent = '';
       const url = fileUrl(file);
       document.getElementById('previewOpen').href = url;
+      document.getElementById('previewDownload').href = downloadUrl(file);
+      document.getElementById('previewDownload').setAttribute('download', file.name.split('/').pop());
       document.getElementById('previewCopy').onclick = async () => {
         try { await navigator.clipboard.writeText(url); document.getElementById('previewStatus').textContent = 'Link copied'; }
         catch { document.getElementById('previewStatus').textContent = 'Copy unavailable. Use Open original to get the link.'; }
